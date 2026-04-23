@@ -2,13 +2,19 @@ import { Divider, SettingsToggleItemDescription } from '@/components/settings/St
 import { XStack, YStack } from '@/components/ui/Stack';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
-import { getConfiguration } from '@/utils/requests';
+import {
+    getAccountContentSettings,
+    getConfiguration,
+    updateAccountContentSettings,
+} from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import tw from 'twrnc';
+
+type ContentSettings = { data: { hide_ai: boolean } };
 
 const RadioOption = ({
     value,
@@ -45,10 +51,40 @@ export default function FeedsSettingsScreen() {
     const setHideForYouFeed = useAuthStore((state) => state.setHideForYouFeed);
     const setDefaultFeed = useAuthStore((state) => state.setDefaultFeed);
     const { colorScheme } = useTheme();
+    const queryClient = useQueryClient();
 
     const { data: appConfig } = useQuery({
         queryKey: ['appConfig'],
         queryFn: getConfiguration,
+    });
+
+    const { data: contentSettings } = useQuery<ContentSettings>({
+        queryKey: ['contentSettings'],
+        queryFn: getAccountContentSettings,
+    });
+
+    const hideAi = contentSettings?.data?.hide_ai ?? false;
+
+    const updateContentSettingsMutation = useMutation({
+        mutationFn: (params: { hide_ai?: boolean }) => updateAccountContentSettings(params),
+        onMutate: async (next) => {
+            await queryClient.cancelQueries({ queryKey: ['contentSettings'] });
+            const previous = queryClient.getQueryData<ContentSettings>(['contentSettings']);
+
+            queryClient.setQueryData<ContentSettings>(['contentSettings'], (old) => ({
+                data: { ...(old?.data ?? { hide_ai: false }), ...next },
+            }));
+
+            return { previous };
+        },
+        onError: (_err, _next, context) => {
+            if (context?.previous) {
+                queryClient.setQueryData(['contentSettings'], context.previous);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['contentSettings'] });
+        },
     });
 
     const forYouSupported = appConfig?.fyf === true;
@@ -64,13 +100,7 @@ export default function FeedsSettingsScreen() {
         { value: 'following', label: 'Following', description: 'Posts from accounts you follow' },
         { value: 'local', label: 'Local', description: 'Posts from your instance' },
         ...(forYouEnabled
-            ? [
-                  {
-                      value: 'forYou',
-                      label: 'For You',
-                      description: 'Personalized feed recommendations',
-                  },
-              ]
+            ? [{ value: 'forYou', label: 'For You', description: 'Personalized feed recommendations' }]
             : []),
     ];
 
@@ -88,17 +118,32 @@ export default function FeedsSettingsScreen() {
 
             <ScrollView style={tw`flex-1`}>
                 {forYouSupported && (
-                    <SettingsToggleItemDescription
-                        icon="eye-off-outline"
-                        label="Hide For You Feed"
-                        description="Hide the For You Feed on this device."
-                        value={hideForYouFeed}
-                        onValueChange={setHideForYouFeed}
-                    />
+                    <>
+                        <SettingsToggleItemDescription
+                            icon="eye-off-outline"
+                            label="Hide For You Feed"
+                            description="Hide the For You Feed on this device."
+                            value={hideForYouFeed}
+                            onValueChange={setHideForYouFeed}
+                        />
+                        <Divider />
+                    </>
                 )}
+
+                <SettingsToggleItemDescription
+                    icon="sparkles-outline"
+                    label="Hide AI-generated content"
+                    description="Filter out videos marked as AI-generated from your feeds."
+                    value={hideAi}
+                    onValueChange={(value) =>
+                        updateContentSettingsMutation.mutate({ hide_ai: value })
+                    }
+                    disabled={updateContentSettingsMutation.isPending}
+                />
 
                 <View style={tw`h-3`} />
 
+                
                 <View style={tw`flex-row items-center py-4 px-5 bg-white dark:bg-black`}>
                     <XStack flex={1}>
                         <YStack flex={1}>

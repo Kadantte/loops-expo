@@ -51,7 +51,7 @@ export class OAuthService {
     static async registerWithWebBrowser(server: string): Promise<boolean> {
         try {
             const url = `https://${server}`;
-            
+
             const REDIRECT_URI = Linking.createURL('register-callback');
 
             const registerUrl = `${url}/auth/app/register?mobile=true&redirect_uri=${encodeURIComponent(REDIRECT_URI)}`;
@@ -389,6 +389,17 @@ export class OAuthService {
             console.error('Token refresh error:', error);
             return false;
         }
+    }
+
+    static async storeAppleAuthCredentials(token: string, user: LoopsUser, server: string): void {
+        Storage.set('user.token', token);
+        Storage.set('user.server', server);
+        Storage.set('app.instance', server);
+        Storage.set('app.token', token);
+
+        const api = `https://${server}`;
+        const userRes = await this.verifyCredentials(api, token);
+        Storage.set('user.profile', JSON.stringify(userRes));
     }
 
     /**

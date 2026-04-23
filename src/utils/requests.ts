@@ -1,3 +1,4 @@
+import { triggerAuthFailure } from '@/utils/authEvents';
 import { Storage } from '@/utils/cache';
 import * as WebBrowser from 'expo-web-browser';
 import { Alert } from 'react-native';
@@ -5,6 +6,37 @@ import { Alert } from 'react-native';
 // ============================================================================
 // UTILITY HELPERS
 // ============================================================================
+
+let _authFailureTriggered = false;
+
+function guardAuthResponse(resp: Response): void {
+    if (resp.status === 401 || resp.status === 403) {
+        if (!_authFailureTriggered) {
+            _authFailureTriggered = true;
+            triggerAuthFailure(
+                resp.status === 403 ? 'Your account has been suspended.' : undefined,
+            );
+        }
+        throw new Error('auth_revoked');
+    }
+
+    const redirectedToLogin = resp.url && resp.url.includes('/login');
+    const isHtml =
+        resp.headers?.get?.('content-type')?.includes('text/html') ||
+        resp.headers?.map?.['content-type']?.includes('text/html');
+
+    if (redirectedToLogin || isHtml) {
+        if (!_authFailureTriggered) {
+            _authFailureTriggered = true;
+            triggerAuthFailure('Your session is no longer valid.');
+        }
+        throw new Error('auth_revoked');
+    }
+}
+
+export function resetAuthFailureFlag() {
+    _authFailureTriggered = false;
+}
 
 const DEFAULT_APP_PREFERENCES = {
     account: { username: 'user', profile_id: null },
@@ -78,6 +110,8 @@ export async function get(url: string, token?: string, data?: any) {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
 
+    guardAuthResponse(resp);
+
     return resp;
 }
 
@@ -98,6 +132,8 @@ export async function postForm(
         body: data ? objectToForm(data) : undefined,
         headers,
     });
+
+    guardAuthResponse(resp);
 
     return resp;
 }
@@ -120,6 +156,8 @@ export async function postFormArray(
         headers,
     });
 
+    guardAuthResponse(resp);
+
     return resp;
 }
 
@@ -128,6 +166,8 @@ export async function post(url: string, token?: string): Promise<Response> {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
+
+    guardAuthResponse(resp);
 
     return resp;
 }
@@ -149,6 +189,8 @@ export async function postFormFile(
         body: data ? arrayToForm(data) : undefined,
         headers,
     });
+
+    guardAuthResponse(resp);
 
     return resp;
 }
@@ -174,6 +216,8 @@ export async function postJson(
         headers,
     });
 
+    guardAuthResponse(resp);
+
     return resp.json();
 }
 
@@ -191,7 +235,9 @@ export async function getJSON(
         completeURL = url;
     }
 
-    let reqHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    let reqHeaders: HeadersInit = token
+        ? { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+        : { Accept: 'application/json' };
 
     if (customHeaders) {
         reqHeaders = { ...reqHeaders, ...customHeaders };
@@ -202,6 +248,8 @@ export async function getJSON(
         redirect: 'follow',
         headers: reqHeaders,
     });
+
+    guardAuthResponse(resp);
 
     return resp.json();
 }
@@ -221,7 +269,9 @@ export function getJsonWithTimeout(
         completeURL = url;
     }
 
-    let reqHeaders: HeadersInit = token ? { Authorization: `Bearer ${token}` } : {};
+    let reqHeaders: HeadersInit = token
+        ? { Authorization: `Bearer ${token}`, Accept: 'application/json' }
+        : { Accept: 'application/json' };
 
     if (customHeaders) {
         reqHeaders = { ...reqHeaders, ...customHeaders };
@@ -259,7 +309,7 @@ export async function _selfGet(
     const instance = Storage.getString('app.instance');
     const token = Storage.getString('app.token');
     const url = `https://${instance}/${path}`;
-    return getJSON(url, token, params, customHeaders || undefined);
+    return await getJSON(url, token, params, customHeaders || undefined);
 }
 
 export async function _selfPost(
@@ -356,6 +406,8 @@ export async function getConfiguration(): Promise<any> {
             redirect: 'follow',
         });
 
+        guardAuthResponse(resp);
+
         if (!resp.ok) {
             console.log('Config endpoint not available, using defaults');
             return { fyf: false };
@@ -382,6 +434,8 @@ export async function getPreferences(): Promise<any> {
             headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
+        guardAuthResponse(resp);
+
         if (!resp.ok) {
             console.log('App preferences endpoint not available, using defaults');
             return DEFAULT_APP_PREFERENCES;
@@ -390,6 +444,7 @@ export async function getPreferences(): Promise<any> {
         const data = await resp.json();
         return data.data;
     } catch (error) {
+        if (error?.message === 'auth_revoked') throw error;
         console.log('Error fetching config, using defaults:', error);
         return DEFAULT_APP_PREFERENCES;
     }
@@ -424,6 +479,8 @@ export async function updatePreferences(preferences: {
             body: JSON.stringify(preferences),
         });
 
+        guardAuthResponse(resp);
+
         if (!resp.ok) {
             console.log('Failed to update preferences on server');
             return null;
@@ -432,6 +489,7 @@ export async function updatePreferences(preferences: {
         const data = await resp.json();
         return data.data;
     } catch (error) {
+        if (error?.message === 'auth_revoked') throw error;
         console.error('Error updating preferences:', error);
         return null;
     }
@@ -670,6 +728,55 @@ export async function submitReport({
 }
 
 // ============================================================================
+// STARTER KIT ENDPOINTS
+// ============================================================================
+
+export async function fetchStarterKit(id): Promise<any> {
+    return await _selfGet(`api/v1/starter-kits/details/${id}`);
+}
+
+export async function fetchStarterKitBrowse({ pageParam = false }): Promise<any> {
+    const url = pageParam
+        ? `api/v1/starter-kits/browse?cursor=${pageParam}`
+        : `api/v1/starter-kits/browse`;
+    const res = await _selfGet(url);
+    console.log(res);
+    return res;
+}
+
+export async function fetchStarterKitUsed(id): Promise<any> {
+    return await _selfGet(`api/v1/starter-kits/details/${id}/used`);
+}
+
+export async function fetchStarterKitAccounts(id): Promise<any> {
+    return await _selfGet(`api/v1/starter-kits/details/${id}/accounts`);
+}
+
+export async function fetchStarterKitMembership(id): Promise<any> {
+    return await _selfGet(`api/v1/starter-kits/details/${id}/membership`);
+}
+
+export async function fetchStarterKitMembershipDecide(id, choice): Promise<any> {
+    return await _selfPost(`api/v1/starter-kits/details/${id}/membership`, { decision: choice });
+}
+
+// ============================================================================
+// PUSH NOTIFICATIONS
+// ============================================================================
+
+export async function fetchPushNotifyStatus(): Promise<any> {
+    return await _selfGet('api/v1/account/settings/push-notifications/status');
+}
+
+export async function enablePushNotifications(params): Promise<any> {
+    return await _selfPost('api/v1/account/settings/push-notifications/enable', params);
+}
+
+export async function disablePushNotifications(): Promise<any> {
+    return await _selfPost('api/v1/account/settings/push-notifications/disable');
+}
+
+// ============================================================================
 // CAMERA & COMPOSE
 // ============================================================================
 
@@ -896,6 +1003,17 @@ export async function fetchFollowerNotifications({
     return await _selfGet(url);
 }
 
+export async function fetchStarterKitNotifications({
+    pageParam,
+}: {
+    pageParam?: string | undefined;
+} = {}): Promise<any> {
+    const url = pageParam
+        ? `api/v1/account/notifications?type=starterKits&cursor=${pageParam}`
+        : `api/v1/account/notifications?type=starterKits`;
+    return await _selfGet(url);
+}
+
 export async function fetchSystemNotifications({
     pageParam,
 }: {
@@ -957,6 +1075,15 @@ export async function updateAccountPassword(params: any): Promise<any> {
 
 export async function getAccountLinks(): Promise<any> {
     return await _selfGet('api/v1/account/settings/links');
+}
+
+export async function getAccountContentSettings(): Promise<any> {
+    return await _selfGet('api/v1/account/settings/content');
+}
+
+export async function updateAccountContentSettings(params: { hide_ai?: boolean }) {
+    const response = await _selfPost('api/v1/account/settings/content', params);
+    return response.data;
 }
 
 export async function updateAddAccountLink(params: any): Promise<any> {

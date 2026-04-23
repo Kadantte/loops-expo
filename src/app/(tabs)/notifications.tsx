@@ -8,10 +8,12 @@ import {
     getExploreAccounts,
     postExploreAccountHideSuggestion,
 } from '@/utils/requests';
+import { Button, Host, Menu } from '@expo/ui/swift-ui';
+import { font, foregroundStyle, labelStyle } from '@expo/ui/swift-ui/modifiers';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
 import tw from 'twrnc';
 
@@ -257,6 +259,7 @@ export default function NotificationScreen() {
         activity: 0,
         followers: 0,
         system: 0,
+        starterKits: 0,
     };
 
     const latestNotifications = useMemo(() => {
@@ -282,41 +285,76 @@ export default function NotificationScreen() {
     }, [notifications]);
 
     const categories = [
-        {
-            id: 'followers',
-            icon: 'people' as const,
-            iconColor: '#FFFFFF',
-            iconBgColor: '#00B8FF',
-            title: 'New followers',
-            subtitle: latestNotifications.followers
-                ? getNotificationMessage(latestNotifications.followers)
-                : 'See your new followers here.',
-            count: unreadCounts.followers,
-            route: '/private/notifications/followers',
-        },
-        {
-            id: 'activity',
-            icon: 'notifications' as const,
-            iconColor: '#FFFFFF',
-            iconBgColor: '#F02C56',
-            title: 'Activities',
-            subtitle: latestNotifications.activity
-                ? getNotificationMessage(latestNotifications.activity)
-                : 'See notifications here.',
-            count: unreadCounts.activity,
-            route: '/private/notifications/activity',
-        },
-        {
-            id: 'system',
-            icon: 'megaphone' as const,
-            iconColor: '#FFFFFF',
-            iconBgColor: '#FFA800',
-            title: 'System notifications',
-            subtitle: 'Tap to view your system notifications.',
-            count: unreadCounts.system,
-            route: '/private/notifications/system',
-        },
-    ];
+    {
+        id: 'followers',
+        icon: 'people' as const,
+        iconColor: '#FFFFFF',
+        iconBgColor: '#00B8FF',
+        title: 'New followers',
+        subtitle: latestNotifications.followers
+            ? getNotificationMessage(latestNotifications.followers)
+            : 'See your new followers here.',
+        count: unreadCounts.followers,
+        route: '/private/notifications/followers',
+    },
+    {
+        id: 'activity',
+        icon: 'notifications' as const,
+        iconColor: '#FFFFFF',
+        iconBgColor: '#F02C56',
+        title: 'Activities',
+        subtitle: latestNotifications.activity
+            ? getNotificationMessage(latestNotifications.activity)
+            : 'See notifications here.',
+        count: unreadCounts.activity,
+        route: '/private/notifications/activity',
+    },
+    ...(unreadCounts.system > 0 ? [{
+        id: 'system',
+        icon: 'megaphone' as const,
+        iconColor: '#FFFFFF',
+        iconBgColor: '#FFA800',
+        title: 'System notifications',
+        subtitle: 'Tap to view your system notifications.',
+        count: unreadCounts.system,
+        route: '/private/notifications/system',
+    }] : []),
+    ...(unreadCounts.starterKits > 0
+        ? [
+              {
+                  id: 'starterKits',
+                  icon: 'sparkles' as const,
+                  iconColor: '#FFFFFF',
+                  iconBgColor: '#8B5CF6',
+                  title: 'Starter Kits',
+                  subtitle: 'You have pending starter kit updates.',
+                  count: unreadCounts.starterKits,
+                  route: '/private/notifications/starterKits',
+              },
+          ]
+        : []),
+];
+
+const SimpleMenuExample = () => {
+    return (
+        <View style={{ alignItems: 'center', justifyContent: 'center', marginRight: 10 }}>
+            <Host matchContents>
+                <Menu
+                    label="Icon Only Button"
+                    systemImage="line.3.horizontal"
+                    modifiers={[
+                        labelStyle('iconOnly'),
+                        foregroundStyle(colorScheme === 'dark' ? '#FFFFFF' : '#000000'),
+                        font({ size: 30 }),
+                    ]}
+                >
+                    <Button label="Starter Kits" onPress={() => router.push('/private/notifications/starterKits')} />
+                    <Button label="System Notifications" onPress={() => router.push('/private/notifications/system')} />
+                </Menu>
+            </Host>
+        </View>
+    );
+};
 
     const suggestedAccounts = useMemo(() => {
         return accountsData || [];
@@ -343,6 +381,7 @@ export default function NotificationScreen() {
                     headerShadowVisible: false,
                     headerBackTitleVisible: false,
                     headerShown: true,
+                    headerRight:  () => <SimpleMenuExample />
                 }}
             />
 

@@ -5,18 +5,18 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
 import { useNotificationStore } from '@/utils/notificationStore';
 import {
-    fetchFollowerNotifications,
+    fetchStarterKitNotifications,
     notificationMarkAsRead,
-    notificationTypeMarkAllAsRead,
+    notificationTypeMarkAllAsRead
 } from '@/utils/requests';
 import { Ionicons } from '@expo/vector-icons';
 import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Stack, useRouter } from 'expo-router';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { ActivityIndicator, Alert, FlatList, TouchableOpacity, View } from 'react-native';
 import tw from 'twrnc';
 
-export default function FollowerNotificationsScreen() {
+export default function StarterKitNotificationsScreen() {
     const router = useRouter();
     const { user } = useAuthStore();
     const queryClient = useQueryClient();
@@ -32,8 +32,8 @@ export default function FollowerNotificationsScreen() {
         isLoading: videosLoading,
         isFetching,
     } = useInfiniteQuery({
-        queryKey: ['follower-notifications'],
-        queryFn: fetchFollowerNotifications,
+        queryKey: ['starterKit-notifications'],
+        queryFn: fetchStarterKitNotifications,
         initialPageParam: undefined,
         refetchOnWindowFocus: false,
         getNextPageParam: (lastPage) => lastPage.meta?.next_cursor,
@@ -42,11 +42,11 @@ export default function FollowerNotificationsScreen() {
     const readMutation = useMutation({
         mutationFn: notificationMarkAsRead,
         onMutate: async (notificationId) => {
-            await queryClient.cancelQueries({ queryKey: ['follower-notifications'] });
+            await queryClient.cancelQueries({ queryKey: ['starterKit-notifications'] });
 
-            const previousData = queryClient.getQueryData(['follower-notifications']);
+            const previousData = queryClient.getQueryData(['starterKit-notifications']);
 
-            queryClient.setQueryData(['follower-notifications'], (old: any) => {
+            queryClient.setQueryData(['starterKit-notifications'], (old: any) => {
                 if (!old?.pages) return old;
 
                 return {
@@ -65,26 +65,26 @@ export default function FollowerNotificationsScreen() {
             return { previousData };
         },
         onSettled: async () => {
-            await queryClient.invalidateQueries({ queryKey: ['follower-notifications'] });
+            await queryClient.invalidateQueries({ queryKey: ['starterKit-notifications'] });
             refetchBadgeCount();
             await queryClient.invalidateQueries({ queryKey: ['main-notifications'] });
         },
         onError: (err, notificationId, context) => {
             if (context?.previousData) {
-                queryClient.setQueryData(['follower-notifications'], context.previousData);
+                queryClient.setQueryData(['starterKit-notifications'], context.previousData);
             }
             console.error('Failed to mark notification as read:', err);
         },
     });
 
     const markAllReadMutation = useMutation({
-        mutationFn: () => notificationTypeMarkAllAsRead('followers'),
+        mutationFn: () => notificationTypeMarkAllAsRead('starterKits'),
         onMutate: async () => {
             await queryClient.cancelQueries({ queryKey: ['main-notifications'] });
-            await queryClient.cancelQueries({ queryKey: ['follower-notifications'] });
+            await queryClient.cancelQueries({ queryKey: ['starterKit-notifications'] });
 
             const previousMainData = queryClient.getQueryData(['main-notifications']);
-            const previousActivityData = queryClient.getQueryData(['follower-notifications']);
+            const previousActivityData = queryClient.getQueryData(['starterKit-notifications']);
 
             queryClient.setQueryData(['main-notifications'], (old: any) => {
                 if (!old) return old;
@@ -100,7 +100,7 @@ export default function FollowerNotificationsScreen() {
                 };
             });
 
-            queryClient.setQueryData(['follower-notifications'], (old: any) => {
+            queryClient.setQueryData(['starterKit-notifications'], (old: any) => {
                 if (!old?.pages) return old;
                 return {
                     ...old,
@@ -122,12 +122,12 @@ export default function FollowerNotificationsScreen() {
                 queryClient.setQueryData(['main-notifications'], context.previousMainData);
             }
             if (context?.previousActivityData) {
-                queryClient.setQueryData(['follower-notifications'], context.previousActivityData);
+                queryClient.setQueryData(['starterKit-notifications'], context.previousActivityData);
             }
             console.error('Failed to mark all as read:', err);
         },
         onSettled: async () => {
-            await queryClient.invalidateQueries({ queryKey: ['follower-notifications'] });
+            await queryClient.invalidateQueries({ queryKey: ['starterKit-notifications'] });
             refetchBadgeCount();
             await queryClient.invalidateQueries({ queryKey: ['main-notifications'] });
             router.back();
@@ -140,15 +140,15 @@ export default function FollowerNotificationsScreen() {
     }, [data]);
 
     const handleOnPress = (item: any) => {
-        if (item.type === 'new_follower') {
-            if (!item.read_at) {
-                readMutation.mutate(item.id);
-            }
-            if(item.kit?.path) {
-                router.push(`/private/kits/show/${item?.kit?.id}`);
-            } else {
-                router.push(`/private/profile/${item?.actor?.id}`);
-            }
+        if (!item.read_at) {
+            readMutation.mutate(item.id);
+        }
+        if(item.type === 'starterKit.awaitingApproval') {
+            router.push(`/private/notifications/starterKits/review/${item?.kit?.id}`);
+        } else if(item.kit?.path) {
+            router.push(`/private/kits/show/${item?.kit?.id}`);
+        } else {
+            router.push(`/private/profile/${item?.actor?.id}`);
         }
     };
 
@@ -190,7 +190,7 @@ export default function FollowerNotificationsScreen() {
         <View style={tw`flex-1 bg-white dark:bg-black`}>
             <Stack.Screen
                 options={{
-                    headerTitle: 'New Followers',
+                    headerTitle: 'Starter Kits',
                     headerBackTitle: 'Back',
                     headerStyle: tw`bg-white dark:bg-black`,
                     headerTintColor: colorScheme === 'dark' ? '#fff' : '#000',

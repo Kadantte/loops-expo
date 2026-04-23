@@ -1,9 +1,12 @@
 import { LoopsUser, OAuthService } from '@/services/oauth';
 import { useNotificationStore } from '@/utils//notificationStore';
-import { getPreferences, updatePreferences } from '@/utils/requests';
+import { setAuthFailureHandler } from '@/utils/authEvents';
+import { getPreferences, resetAuthFailureFlag, updatePreferences } from '@/utils/requests';
 import * as SecureStore from 'expo-secure-store';
+import { Alert } from 'react-native';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { Storage } from './cache';
 
 type UserState = {
     isLoggedIn: boolean;
@@ -18,6 +21,7 @@ type UserState = {
     loopVideos: boolean;
     muteOnOpen: boolean;
     autoExpandCw: boolean;
+    loginWithApple: (server: string, credential: any) => Promise<boolean>;
     appearance: 'light' | 'dark' | 'system';
     loginWithOAuth: (server: string, scopes?: string) => Promise<boolean>;
     registerWithWebBrowser: (server: string) => Promise<boolean>;
@@ -60,11 +64,47 @@ export const useAuthStore = create(
                         get().syncAuthState();
                         await get().syncPreferencesFromServer();
                         await useNotificationStore.getState().refetchBadgeCount();
+                        resetAuthFailureFlag();
                     }
 
                     return success;
                 } catch (error) {
                     console.error('OAuth login failed:', error);
+                    return false;
+                }
+            },
+
+            loginWithApple: async (server: string, credential: any) => {
+                try {
+                    const res = await fetch(`https://${server}/api/v1/auth/apple`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+                        body: JSON.stringify({
+                            identity_token: credential.identityToken,
+                            user_id: credential.user,
+                            email: credential.email,
+                            full_name: credential.fullName,
+                            authorization_code: credential.authorizationCode,
+                        }),
+                    });
+
+                    if (!res.ok) {
+                        const error = await res.json();
+                        Alert.alert('Error', error.error || 'Authentication failed');
+                        return false;
+                    }
+
+                    const data = await res.json();
+
+                    await OAuthService.storeAppleAuthCredentials(data.token, data.user, server);
+                    get().syncAuthState();
+                    await get().syncPreferencesFromServer();
+                    await useNotificationStore.getState().refetchBadgeCount();
+                    resetAuthFailureFlag();
+
+                    return true;
+                } catch (error) {
+                    console.error('Apple login failed:', error);
                     return false;
                 }
             },
@@ -196,8 +236,27 @@ export const useAuthStore = create(
                 }));
             },
 
-            logOut: (onComplete?: () => void) => {
-                // Clear OAuth credentials
+            logOut: async (onComplete?: () => void) => {
+                try {
+                    const server = Storage.getString('app.instance');
+                    const token = Storage.getString('app.token');
+
+                    if (server && token) {
+                        await fetch(`https://${server}/api/v1/app/logout`, {
+                            method: 'POST',
+                            headers: {
+                                Authorization: `Bearer ${token}`,
+                                'Content-Type': 'application/json',
+                                Accept: 'application/json',
+                            },
+                        });
+                    }
+                } catch (error) {
+                    console.warn('Server logout request failed:', error);
+                }
+
+                useNotificationStore.getState().resetBadgeCount();
+
                 OAuthService.logout();
 
                 set({
@@ -242,6 +301,14 @@ export const useAuthStore = create(
                 }));
 
                 if (value) {
+                    setAuthFailureHandler((reason) => {
+                        get().logOut();
+                        Alert.alert(
+                            'Session Expired',
+                            reason || 'Your session is no longer valid. Please log in again.',
+                        );
+                    });
+
                     get().syncAuthState();
                     if (get().isLoggedIn) {
                         get().syncPreferencesFromServer();

@@ -39,7 +39,7 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             case 'video.like':
                 return 'liked your video.';
             case 'new_follower':
-                return 'followed you.';
+                return item.kit?.path ? `followed you from a Starter Kit.` : 'followed you.';
             case 'video.commentReply':
                 return 'replied to your comment.';
             case 'video.comment':
@@ -58,6 +58,16 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
                 return 'shared your reply.';
             case 'video.duet':
                 return 'dueted your video.';
+            case 'starterKit.awaitingApproval':
+                return 'wants to add you to a Starter Kit';
+            case 'starterKit.accountApproved':
+                return 'accepted to be included in your Starter Kit';
+            case 'starterKit.newMember':
+                return 'added a new member to a Starter Kit';
+            case 'starterKit.accountRejected':
+                return 'declined to be included in your Starter Kit';
+            case 'starterKit.removedFromKit':
+                return 'removed you from a Starter Kit';
             default:
                 return 'interacted with your content.';
         }
@@ -78,6 +88,13 @@ export const NotificationItem: React.FC<NotificationItemProps> = ({
             case 'commentReply.share':
             case 'video.share':
                 return <Ionicons name="sync" size={16} color="#FF2D55" />;
+            case 'starterKit.accountApproved':
+            case 'starterKit.newMember':
+            case 'starterKit.removedFromKit':
+            case 'starterKit.awaitingApproval':
+            case 'starterKit.accountApproved':
+            case 'starterKit.accountRejected':
+                return <Ionicons name="sparkles" size={16} color="#8B5CF6" />;
             default:
                 return null;
         }

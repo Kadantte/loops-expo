@@ -1,12 +1,22 @@
 import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { useAuthStore } from '@/utils/authStore';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { SplashScreen, Stack } from 'expo-router';
+import * as Notifications from 'expo-notifications';
+import { router, SplashScreen, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useEffect } from 'react';
 import { useColorScheme } from 'react-native';
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
 SplashScreen.preventAutoHideAsync();
 
@@ -14,10 +24,36 @@ const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: 2 } },
 });
 
+function useNotificationObserver() {
+  useEffect(() => {
+    function redirect(notification: Notifications.Notification) {
+      const url = notification.request.content.data?.url;
+      if (typeof url === 'string') {
+        router.push(url);
+      }
+    }
+
+    const response = Notifications.getLastNotificationResponse();
+    if (response?.notification) {
+      redirect(response.notification);
+    }
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      redirect(response.notification);
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
+}
+
 function AppContent() {
-    const { isLoggedIn, shouldCreateAccount, hasCompletedOnboarding } = useAuthStore();
+    const { isLoggedIn, shouldCreateAccount } = useAuthStore();
     const { colorScheme } = useTheme();
     const systemColorScheme = useColorScheme();
+
+    useNotificationObserver();
 
     const getStatusBarStyle = () => {
         if (colorScheme === 'device') {
@@ -30,20 +66,13 @@ function AppContent() {
         <React.Fragment>
             <StatusBar style={getStatusBarStyle()} />
             <Stack>
-                {/* Show onboarding if not completed, regardless of login status */}
-                <Stack.Protected guard={!hasCompletedOnboarding}>
-                    <Stack.Screen name="onboarding" options={{ headerShown: false }} />
-                </Stack.Protected>
-
-                {/* Show main app only if logged in AND completed onboarding */}
-                <Stack.Protected guard={hasCompletedOnboarding && isLoggedIn}>
+                <Stack.Protected guard={isLoggedIn}>
                     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
                     <Stack.Screen name="private" options={{ headerShown: false }} />
                     <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
                 </Stack.Protected>
 
-                {/* Show auth screens only if completed onboarding but not logged in */}
-                <Stack.Protected guard={hasCompletedOnboarding && !isLoggedIn}>
+                <Stack.Protected guard={!isLoggedIn}>
                     <Stack.Screen
                         name="sign-in"
                         options={{ headerShown: false, gestureEnabled: false }}

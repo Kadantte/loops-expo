@@ -1,6 +1,7 @@
 import { StackText, XStack } from '@/components/ui/Stack';
 import { useAuthStore } from '@/utils/authStore';
 import { openBrowser, registerPreflightCheck } from '@/utils/requests';
+import * as AppleAuthentication from 'expo-apple-authentication';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -34,6 +35,7 @@ const POPULAR_SERVERS = [
     { label: 'Other…', value: 'other' },
 ];
 
+
 type FlowStep =
     | 'initial'
     | 'signin-server'
@@ -44,6 +46,8 @@ type FlowStep =
 export default function SignInScreen() {
     const loginWithOAuth = useAuthStore((state) => state.loginWithOAuth);
     const registerWithWebBrowser = useAuthStore((state) => state.registerWithWebBrowser);
+
+    const { loginWithApple } = useAuthStore();
 
     const [currentStep, setCurrentStep] = useState<FlowStep>('initial');
     const [isLoading, setIsLoading] = useState(false);
@@ -157,6 +161,39 @@ export default function SignInScreen() {
         transitionToStep(backMap[currentStep]);
     };
 
+
+    const AppleSignInButton = () => {
+        if (Platform.OS !== 'ios') {
+            return null;
+        }
+
+        return (
+            <AppleAuthentication.AppleAuthenticationButton
+            buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
+            buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
+            cornerRadius={8}
+            style={{ width: '100%', height: 50 }}
+            onPress={async () => {
+                try {
+                    const credential = await AppleAuthentication.signInAsync({
+                        requestedScopes: [
+                            AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+                            AppleAuthentication.AppleAuthenticationScope.EMAIL,
+                        ],
+                    });
+
+                    const success = await loginWithApple('loops.video', credential);
+                    if (success) {
+                    }
+                } catch (e: any) {
+                    if (e.code === 'ERR_REQUEST_CANCELED') return;
+                    console.error('Apple sign-in failed:', e);
+                }
+            }}
+            />
+        );
+    }
+
     const renderInitial = () => (
         <Animated.View entering={FadeIn} exiting={FadeOut} style={tw`flex-1 justify-between px-6 py-12`}>
             <LinearGradient
@@ -172,11 +209,14 @@ export default function SignInScreen() {
                 </Text>
             </View>
 
+            <View style={tw`gap-3 mb-5`}>
+                { AppleSignInButton() }
+            </View>
             <View style={tw`gap-3`}>
                 <Pressable
                     onPress={handleSignInStart}
                     style={({ pressed }) => [
-                        tw`h-14 rounded-full justify-center items-center bg-[#FFE500]`,
+                        tw`h-13 rounded-lg justify-center items-center bg-[#FFE500]`,
                         pressed && tw`opacity-80`,
                     ]}
                 >
@@ -188,7 +228,7 @@ export default function SignInScreen() {
                 <Pressable
                     onPress={handleRegisterStart}
                     style={({ pressed }) => [
-                        tw`h-14 rounded-full justify-center items-center border-2 border-[#FFE500]`,
+                        tw`h-13 rounded-lg justify-center items-center border-2 border-[#FFE500]`,
                         pressed && tw`opacity-80`,
                     ]}
                 >
