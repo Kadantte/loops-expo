@@ -2,18 +2,20 @@
     "expo": {
         "name": "Loops",
         "slug": "loops",
-        "version": "1.0.0",
+        "version": "1.0.1",
         "orientation": "portrait",
         "icon": "./assets/images/icon.png",
         "scheme": "loops",
         "userInterfaceStyle": "automatic",
-        "newArchEnabled": true,
         "ios": {
-            "supportsTablet": true,
+            "usesAppleSignIn": true,
+            "supportsTablet": false,
             "bundleIdentifier": "com.pixelfed.loops",
             "infoPlist": {
-                "NSCameraUsageDescription": "Loops needs access to your Camera.",
-                "NSMicrophoneUsageDescription": "Loops needs access to your Microphone."
+                "NSCameraUsageDescription": "Loops needs camera access to record short videos that you can share with the community and post to your profile.",
+                "NSMicrophoneUsageDescription": "Loops needs microphone access to record audio for your videos so you can add sound and voice to the content you create and share.",
+                "NSPhotoLibraryAddUsageDescription": "Loops saves videos to your photo library when you download content you want to keep or save videos you've created in the app. This allows you to keep a local copy of your content",
+                "NSPhotoLibraryUsageDescription": "Loops needs access to your photos and videos so you can select and upload videos from your library to share with the community."
             }
         },
         "android": {
@@ -23,7 +25,6 @@
                 "backgroundImage": "./assets/images/android-icon-background.png",
                 "monochromeImage": "./assets/images/android-icon-monochrome.png"
             },
-            "edgeToEdgeEnabled": true,
             "predictiveBackGestureEnabled": false,
             "package": "com.pixelfed.loops",
             "permissions": [
@@ -62,8 +63,8 @@
             [
                 "expo-media-library",
                 {
-                    "photosPermission": "Allow Loops to access your photos and videos.",
-                    "savePhotosPermission": "Allow Loops to save photos and videos.",
+                    "photosPermission": "Loops needs access to your photos and videos so you can select and upload videos from your library to share with the community.",
+                    "savePhotosPermission": "Loops saves videos to your photo library when you download content you want to keep or save videos you've created in the app. This allows you to keep a local copy of your content.",
                     "isAccessMediaLocationEnabled": true,
                     "granularPermissions": ["audio", "photo"]
                 }
@@ -71,13 +72,17 @@
             [
                 "react-native-vision-camera",
                 {
-                    "cameraPermissionText": "Loops needs access to your Camera.",
+                    "enableLocation": false,
+                    "cameraPermissionText": "Loops needs camera access to record short videos that you can share with the community and post to your profile.",
                     "enableMicrophonePermission": true,
-                    "microphonePermissionText": "Loops needs access to your Microphone."
+                    "microphonePermissionText": "Loops needs microphone access to record audio for your videos so you can add sound and voice to the content you create and share."
                 }
             ],
             "react-native-compressor",
-            "expo-notifications"
+            "expo-apple-authentication",
+            "@react-native-community/datetimepicker",
+            "expo-font",
+            "expo-image"
         ],
         "experiments": {
             "typedRoutes": true,
